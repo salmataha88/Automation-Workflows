@@ -48,26 +48,6 @@ jobs:
         - name: Restore dependencies
           run: dotnet restore ${{ inputs.project-path }}
 
-        - name: Build project
-          run: |
-           dotnet build ${{ inputs.project-path }} \
-            --configuration ${{ inputs.build-configuration }} \
-            --no-restore
-
-        - name: Publish artifact
-          run: |
-            dotnet publish ${{ inputs.project-path }} \
-              --configuration ${{ inputs.build-configuration }} \
-              --no-restore \
-              --output ./build_output
-
-        # ============ TEST ==============
-        - name: Run tests
-          if: ${{ inputs.run-tests == true }}
-          run: dotnet test ${{ inputs.project-path }} \
-            --configuration ${{ inputs.build-configuration }}
-          continue-on-error: true
-
         # ============ GITLEAKS SECRET SCANNING ==============
         - name: Run GitLeaks for secret detection
           uses: gitleaks/gitleaks-action@v2
@@ -82,12 +62,33 @@ jobs:
            sarif_file: results.sarif
            category: gitleaks-dotnet
 
-        # ============ CODEQL CODE ANALYSIS ==============
+        # ============ CODEQL INIT ==============
         - name: Initialize CodeQL
           uses: github/codeql-action/init@v3
           with:
            languages: csharp
         
+        - name: Build project
+          run: |
+           dotnet build ${{ inputs.project-path }} \
+            --configuration ${{ inputs.build-configuration }} \
+            --no-restore
+
+        - name: Publish artifact
+          run: |
+            dotnet publish ${{ inputs.project-path }} \
+              --configuration ${{ inputs.build-configuration }} \
+              --no-restore \
+              --output ./build_output 
+
+        # ============ TEST ==============
+        - name: Run tests
+          if: ${{ inputs.run-tests == true }}
+          run: dotnet test ${{ inputs.project-path }} \
+            --configuration ${{ inputs.build-configuration }}
+          continue-on-error: true
+
+        # ============ CODEQL CODE ANALYSIS =============
         - name: Perform CodeQL Analysis
           uses: github/codeql-action/analyze@v3
           with:
