@@ -1,0 +1,45 @@
+name: 'React Docker S2I Action'
+description: 'Build and push React app to container registry (Source-to-Image)'
+author: 'Your Name'
+
+inputs:
+  registry:
+    description: 'Container registry (e.g., ghcr.io)'
+    required: true
+  
+  username:
+    description: 'Registry username'
+    required: true
+  
+  password:
+    description: 'Registry password/token'
+    required: true
+  
+  image-name:
+    description: 'Image name without tag'
+    required: true
+  
+  tag:
+    description: 'Image tag'
+    required: false
+    default: 'latest'
+
+outputs:
+  image_name:
+    description: 'Full image name with tag'
+  
+  image_digest:
+    description: 'Docker image digest'
+  
+  push_status:
+    description: 'Push status (success/failed)'
+
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  args:
+    - ${{ inputs.registry }}
+    - ${{ inputs.username }}
+    - ${{ inputs.password }}
+    - ${{ inputs.image-name }}
+    - ${{ inputs.tag }}
