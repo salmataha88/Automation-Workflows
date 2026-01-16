@@ -1,0 +1,127 @@
+name: .NET CI/CD Workflow
+
+on:
+  workflow_call:
+    inputs:
+      dotnet-version:
+        description: "The version of .NET to use (e.g., 8.0)"
+        required: true
+        type: string
+
+      project-path:
+        description: "Path to the .NET project"
+        required: true
+        type: string
+
+      build-configuration:
+        description: "Build configuration (Release/Debug)"
+        required: false
+        type: string
+        default: "Release"
+        
+      run-tests:
+        description: "Run tests (true/false)"
+        required: false
+        type: boolean
+        default: true
+    
+permissions:
+  contents: read
+  packages: write
+  security-events: write
+
+jobs:
+    Build-and-Scan:
+      runs-on: ubuntu-latest
+
+      steps:
+        # ============ SETUP & CHECKOUT ==============
+        - name: Checkout repository
+          uses: actions/checkout@v4 
+
+        - name: Setup .NET
+          uses: actions/setup-dotnet@v4
+          with:
+            dotnet-version: ${{ inputs.dotnet-version }}
+
+        # ============ BUILD & PUBLISH ==============
+        - name: Restore dependencies
+          run: dotnet restore ${{ inputs.project-path }}
+
+        - name: Build project
+          run: |
+           dotnet build ${{ inputs.project-path }} \
+            --configuration ${{ inputs.build-configuration }} \
+            --no-restore
+
+        - name: Publish artifact
+          run: |
+            dotnet publish ${{ inputs.project-path }} \
+              --configuration ${{ inputs.build-configuration }} \
+              --no-restore \
+              --output ./build_output
+
+        # ============ TEST ==============
+        - name: Run tests
+          if: ${{ inputs.run-tests == true }}
+          run: dotnet test ${{ inputs.project-path }} \
+            --configuration ${{ inputs.build-configuration }}
+          continue-on-error: true
+
+        # ============ GITLEAKS SECRET SCANNING ==============
+        - name: Run GitLeaks for secret detection
+          uses: gitleaks/gitleaks-action@v2
+          continue-on-error: true
+          env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+        - name: Upload GitLeaks SARIF to GitHub Security
+          uses: github/codeql-action/upload-sarif@v3
+          if: always()
+          with:
+           sarif_file: results.sarif
+           category: gitleaks-dotnet
+
+        # ============ CODEQL CODE ANALYSIS ==============
+        - name: Initialize CodeQL
+          uses: github/codeql-action/init@v3
+          with:
+           languages: csharp
+        
+        - name: Perform CodeQL Analysis
+          uses: github/codeql-action/analyze@v3
+          with:
+           category: codeql-dotnet
+
+        # ============ DOCKER BUILD & PUSH ==============
+        - name: Log in to GitHub Container Registry
+          uses: docker/login-action@v3
+          with:
+           registry: ghcr.io
+           username: ${{ github.actor }}
+           password: ${{ secrets.GITHUB_TOKEN }}
+        
+        - name: Build and Push Docker Image
+          uses: docker/build-push-action@v6
+          with:
+           context: ${{ inputs.project-path }}
+           push: true
+           tags: |
+            ghcr.io/${{ github.actor }}/dotnet-backend:${{ github.sha }}
+            ghcr.io/${{ github.actor }}/dotnet-backend:latest
+        
+        # ============ TRIVY IMAGE SCANNING ==============
+        - name: Run Trivy vulnerability scanner
+          uses: aquasecurity/trivy-action@0.33.1
+          with:
+           image-ref: ghcr.io/${{ github.actor }}/dotnet-backend:${{ github.sha }}
+           format: sarif
+           output: trivy-results.sarif
+           severity: CRITICAL,HIGH
+        
+        - name: Upload Trivy SARIF to GitHub Security
+          uses: github/codeql-action/upload-sarif@v4
+          if: always()
+          with:
+           sarif_file: trivy-results.sarif
+           category: trivy-dotnet
