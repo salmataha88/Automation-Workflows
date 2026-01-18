@@ -8,8 +8,13 @@ on:
         required: true
         type: string
 
+      project-Dir:
+        description: "Directory of the .NET project"
+        required: true
+        type: string
+
       project-path:
-        description: "Path to the .NET project"
+        description: "Path to the .NET project with the .csproj file"
         required: true
         type: string
 
@@ -79,7 +84,7 @@ jobs:
             dotnet publish ${{ inputs.project-path }} \
               --configuration ${{ inputs.build-configuration }} \
               --no-restore \
-              --output ./build_output 
+              --output ${{ inputs.project-Dir }}/build_output
 
         # ============ TEST ==============
         - name: Run tests
@@ -105,12 +110,13 @@ jobs:
         - name: Build and Push Docker Image
           uses: docker/build-push-action@v6
           with:
-           context: ${{ inputs.project-path }}
-           push: true
-           tags: |
-            ghcr.io/${{ github.actor }}/dotnet-backend:${{ github.sha }}
-            ghcr.io/${{ github.actor }}/dotnet-backend:latest
-        
+            context: ${{ inputs.project-Dir }}
+            file: ${{ inputs.project-Dir }}/Dockerfile
+            push: true
+            tags: |
+              ghcr.io/${{ github.actor }}/dotnet-backend:${{ github.sha }}
+              ghcr.io/${{ github.actor }}/dotnet-backend:latest
+
         # ============ TRIVY IMAGE SCANNING ==============
         - name: Run Trivy vulnerability scanner
           uses: aquasecurity/trivy-action@0.33.1
