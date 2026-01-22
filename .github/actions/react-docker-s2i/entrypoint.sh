@@ -30,7 +30,7 @@ echo "Docker login successfully ✅"
 
 # ======= PREPARE BUILD CONTEXT ========
 echo ""
-echo "Preparing build context..."
+echo "Preparing build context"
 
 if [ ! -d "$GITHUB_WORKSPACE/dist" ]; then
     echo "❌ Error: dist/ folder not found!"
@@ -38,7 +38,15 @@ if [ ! -d "$GITHUB_WORKSPACE/dist" ]; then
     exit 1
 fi
 
+if [ ! -f "$GITHUB_WORKSPACE/nginx.conf" ]; then
+    echo "❌ Error: nginx.conf file not found!"
+    echo "   Make sure you have an nginx configuration file in the root of your project"
+    exit 1
+fi
+
 cp -r "$GITHUB_WORKSPACE"/dist /app/
+cp "$GITHUB_WORKSPACE"/nginx.conf /app/
+
 echo "✅ Build context prepared ✅"
 
 # ======= BUILD DOCKER IMAGE =========
